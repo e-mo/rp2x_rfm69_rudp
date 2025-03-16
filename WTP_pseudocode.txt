@@ -1,0 +1,200 @@
+func send_payload( radio, rx_address, payload, payload_size, timeout ) -> bool {
+
+	// Determine num of data segments
+	data_segs = (payload_size/max_segment_size);
+	data_remain = false;
+	if (payload_size % max_segment_size)
+		data_segs += 1;
+
+	// INITIAL HEADER
+
+	// Get tx address
+	tx_address = get_my_address(radio);
+
+	// Calculate first packet size
+	segment_size = data_segs > 1 ? max_segment_size : payload_size;
+
+	// Set first four bytes
+	header[header_size] = {
+		[packet_size] = header_size + segment_size,
+		[rx_address] = rx_address,
+		[tx_address] = tx_address,
+		[flags] = SYN // All first packets are SYN packets
+	};
+	// If only one data segment then our first packet should signal that
+	// this is the last segment.
+	if (data_seg == 1)
+		header[flags] |= FIN;
+
+	// Set 16 bit seq and ack
+	header[seq_num] = random_16_bit_int();
+	header[ack_num] = 0;
+
+	// Create byte buffer to recieve RX responses
+	// RX packets will contain no data, only a header
+	rx_buffer[header_size] = {0};
+
+	// TRANSMIT LOOP
+	timeout_time = current_time() + timeout;
+	while (current_time() >= timeout_time)  {
+		if (!transmit_packet(radio, header, payload, segment_size))
+			break;
+
+		// ack_timeout should be some constant or based on bitrate possibly
+		// Should be as short as possible
+		received = receive_packet(radio, rx_buffer, header_size, ack_timeout);
+
+		// Check if anything was received, and if so if ack is valid. 
+		// Things that might signal this:
+		// - Incorrect ACK (not seq_num + 1)
+		// - ACK flag not set (all rx packets should have this set)
+		// - FIN | SYN | RTR flag not echoed as expected
+		// In either case we should retransmit
+		if (!received || !valid_ack(header, rx_buffer)) {
+			// Set retransmit flag
+			header[flags] |= RTR;
+			continue;
+		}
+
+		// We have an ack we expected and can adjust our header
+		// for next packet
+
+		// SYN and RTR can always be cleared here
+		header[flags] &= ~(SYN | RTR);
+
+		// ACK should always be set from this point forward
+		header[flags] |= ACK; 
+
+		// Increment sequence num (wrapping around to 0 if overflow)
+		header[seq_num] = increment_16_bit_wrap(header[seq_num]);
+		// Set ack num to rx sequence num + 1
+		header[ack_num] = increment_16_bit_wrap(rx_buffer[seq_num]);
+
+		// A data segment as been confirmed so we can adjust our count
+		data_segs -= 1;
+
+		// If we have sent all segments, break here.
+		if (!data_segs) break;
+
+		// Adjust remaining payload_size
+		payload_size -= segment_size;
+
+		// Move payload pointer
+		payload += segment_size;
+
+		// Calculate next segment_size
+		segment_size = data_segs > 1 ? max_segment_size : payload_size;
+
+		// If last segment, set FIN flag.
+		if (data_segs == 1) 
+			header[flags] |= FIN;
+	}
+	
+	// If there is remaining data segments, transmission either timed out
+	// or there was a hardware failure
+	// A return value enum might be more appropriate than bool for reporting
+	// cause of failure
+	if (data_segs) return false;
+
+	// Otherwise finish the transmission teardown by sending the final
+	// FIN packet
+	// Only send the header since all data segments are sent.
+	transmit_packet(radio, header, NULL, 0);
+
+	// Fine FIN farewell packet is sent and the transmission
+	// can be terminated
+	return true;
+}
+
+// NULL payload or 0 payload_size will send only header
+func transmit_packet( radio, header, payload, payload_size ) -> bool {
+	// Always send header
+	if (!transmit_buffer(radio, header, header_size))
+		return false;
+
+	// Can break here if there is no payload to send
+	if (payload == NULL || payload_size == 0)
+		return true;
+
+	// Send payload
+	return transmit_buffer(radio, payload, payload_size);
+}
+
+func receive_packet(radio, rx_buffer, buffer_size, timeout) -> bool {
+	// Not 100% on implementation here but I think the best move
+	// would be to wait for payload ready interrupt with a timer
+	// set to interrupt if no packet arrives.
+	// If packet arrives, timer can be turned off.
+
+	// We need to disable fifo clear on crc failure so that we
+	// still get payload ready interrupt
+	
+	set_rx_interrupt(radio, true);
+	enable_timer(0, timeout);
+
+	// While loop on interrupt controlled "fifo not empty" flag
+	// and "timeout interrupt" flag
+	while (!fifo_not_empty && !timeout_interrupt)
+		wait_for_interrupt();
+
+	if (timeout_interrupt) return false;
+
+	// Fifo has at least the first byte of data which has the packet size
+	read_from_fifo(radio, rx_buffer, 1); 
+	packet_size = rx_buffer[0];
+
+	// buffer not large enough
+	if (packet_size > buffer_size - 1) return false;
+
+	// Advance buffer pointer
+	rx_buffer += 1;	
+
+	// Now we loop, grabbing bytes anytime we hit fifo level interrupt
+	// and breaking what we get payload ready interrupt
+	loop {
+		while (!fifo_level && !payload_ready)	
+			wait_for_interrupt();
+
+		// If fifo_level interrupt, grab fifo_threshold bytes out of the fifo
+		if (fifo_level) { 
+			read_from_fifo(radio, rx_buffer, fifo_threshold);
+			packet_size -= fifo_threshold;
+			fifo_level = false;
+			continue;
+		}
+		
+		// Payload is completely in and we can break from this loop
+		if (payload_ready) break;
+
+		// We still haven't received complete packet before timeout
+		if (timeout_interrupt) return false;
+	}
+
+	// No need for timeout interrupt now because we have a packet
+	disable_timer(0, timeout);
+
+	// Check if crc is ok
+	// If it is not ok, the packet has errors and should be thrown out
+	if (!crc_ok(radio)) return false;
+
+	// CRC is OK, so we read out the rest of the packet in 
+}
+
+func valid_ack(header, rx_buffer) -> bool {
+	// Compare seq and received ack for correctness
+	if (increment_16_bit_wrap(header[seq_num]) != rx_buffer[ack_num])
+		return false;
+
+	// Compare flags for correctness
+
+	// All RX packets should have ACK set
+	if (rx_buffer[flags] & ACK == 0) 
+		return false;
+
+	// SYN | FIN | RTR should all be the same in both headers
+	flag_mask = SYN | FIN | RTR;
+	if (header[flags] & flag_mask != rx_buffer[flags] & flag_mask)
+		return false;
+
+	return true;
+}

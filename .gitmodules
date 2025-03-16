@@ -1,3 +1,6 @@
 [submodule "rp2x_rfm69"]
 	path = rp2x_rfm69
 	url = git@github.com:e-mo/rp2x_rfm69.git
+[submodule "rp2x_gpio_irq"]
+	path = rp2x_gpio_irq
+	url = git@github.com:e-mo/rp2x_gpio_irq.git
