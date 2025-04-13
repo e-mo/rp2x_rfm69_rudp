@@ -31,6 +31,8 @@ struct rudp_config_s {
 };
 ```
 ```c
+// rudp_init example
+
 int main() {
     // SPI init
     spi_init(RFM69_SPI, 1000*1000);
@@ -43,7 +45,7 @@ int main() {
     gpio_set_dir(RFM69_PIN_CS, GPIO_OUT);
     gpio_put(RFM69_PIN_CS, 1);
 
-    rfm69_context_t rfm;
+	// DIO 0-2 must be defined to use interrupts instead of polling
     struct rfm69_config_s rfm_config = {
         .spi      = RFM69_SPI,
         .pin_cs   = RFM69_PIN_CS,
@@ -53,13 +55,15 @@ int main() {
         .pin_dio2 = RFM69_PIN_DIO2
     };
 
-    // Can rely on default RUDP values in config
-    rudp_context_t rudp;
+    // Can rely on default RUDP values in config but must provide rfm69 instance
+	// and config
+    rfm69_context_t rfm;
     struct rudp_config_s rudp_config = {
         .rfm = &rfm,
         .rfm_config = &rfm_config
     };
 
+    rudp_context_t rudp;
     if (rudp_init(&rudp, &rudp_config) == false) {
         // Handle init error here
     }
