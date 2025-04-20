@@ -52,11 +52,11 @@ VP_TX_ERROR_T rfm69_vp_tx(
 
 	rfm69_write(rfm, RFM69_REG_FIFO, payload_buffer, write_size);
 	payload_size -= write_size;
+	payload_buffer += write_size;
 
 	rfm69_mode_set(rfm, RFM69_OP_MODE_TX);
 
 	while (payload_size) {
-		payload_buffer += write_size;
 
 		// When fifo_level clears, calculate new write size
 		// 20 is a number I found to work for all bitrates during fill.
@@ -64,14 +64,13 @@ VP_TX_ERROR_T rfm69_vp_tx(
 		// and bytes actually being ready to pull from the fifo and things
 		// can get strange. You'll see this same 20 in the RX when pulling
 		// from an active FIFO as well. 
-		write_size = payload_size > 20 ? 
-					 20 : payload_size;
 
 		// Wait for fifo_level flag to clear
 		sem_acquire_blocking(&fifo_level);
 
-		rfm69_write(rfm, RFM69_REG_FIFO, payload_buffer, write_size);
-		payload_size -= write_size;
+		rfm69_write(rfm, RFM69_REG_FIFO, payload_buffer, 1);
+		payload_buffer++;
+		payload_size--;
 	}
 	// Wait for packet to send
 	sem_acquire_blocking(&packet_sent);
@@ -138,17 +137,16 @@ VP_RX_ERROR_T rfm69_vp_rx(
 
 	// Rx loop
 	for (;;) {
-		// Note magic 20 fill rate here. I found this to work for all
-		// bitrates as the interrupt firing does not guarantee that there
-		// are as many bytes ready to read from the buffer as you would hope.
 		if (sem_try_acquire(&fifo_level)) {
-			if (sem_acquire_timeout_ms(&payload_ready, 1)) break;
+			// We don't want to empty
+			if (sem_try_acquire(&payload_ready)) break;
 
-			if (!rfm69_read(rfm, RFM69_REG_FIFO, rx_buffer, 20)) {
+			if (!rfm69_read(rfm, RFM69_REG_FIFO, rx_buffer, 1)) {
 				rx_status = VP_RX_FIFO_READ_FAILURE;
 				goto CLEANUP;
 			}
-			rx_buffer += 20;
+
+			rx_buffer++;
 		}
 
 		// Check if we have hit a payload_ready
