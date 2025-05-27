@@ -17,7 +17,7 @@ struct rudp_config_s {
 	uint32_t rx_drop_timeout;
 };
 
-struct _rudp_context {
+struct rudp_context {
 	rfm69_context_t *rfm;		
 	uint32_t tx_resend_max;
 	uint32_t tx_resend_timeout;

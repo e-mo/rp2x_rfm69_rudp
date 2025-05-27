@@ -37,7 +37,7 @@
 
 // Helper function to initialize rfm69 context for use with rudp interface
 // Same as calling rfm69_init and then rfm69_rudp_config
-bool rudp_init(rudp_context_t *rudp, const struct rudp_config_s *config) {
+bool rudp_init(struct rudp_context *rudp, const struct rudp_config_s *config) {
 	if (rfm69_init(config->rfm, config->rfm_config) == false) return false; 
 
 	rudp_config(config->rfm);
@@ -152,15 +152,15 @@ static ACK_STATUS_T _ack_received(
 	return ack_status;
 }
 
-RUDP_TX_STATUS_T rudp_tx(
-		rudp_context_t *rudp,
+int rudp_tx(
+		struct rudp_context *rudp,
 		uint8_t rx_address, 
 		uint8_t *payload_buffer,
 		uint32_t payload_size
 )
 {
 	// Default value to catch errors in function
-	RUDP_TX_STATUS_T return_status = -1;
+	enum rudp_trx_error return_status = -1;
 	rfm69_context_t *rfm = rudp->rfm;
 
 	// Start and end in sleep so we always knows our inital and ending state
@@ -285,14 +285,14 @@ CLEANUP:;
 
 
 
-RUDP_RX_STATUS_T rudp_rx(
-		rudp_context_t *rudp,
+int rudp_rx(
+		struct rudp_context *rudp,
 		uint8_t *payload_buffer,
 		uint32_t buffer_size,
 		uint32_t *received
 )
 {
-	RUDP_RX_STATUS_T return_status = -1;
+	enum rudp_trx_error return_status = -1;
 	uint8_t *buffer_p = payload_buffer;
 
 	rfm69_context_t *rfm = rudp->rfm;
