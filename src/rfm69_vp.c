@@ -58,6 +58,9 @@ VP_TX_ERROR_T rfm69_vp_tx(
 
 	while (payload_size) {
 
+		// 25.05.27: The rest of this comment is bullshit but I'm leaving it for
+		// posterity. This is now done 1 byte at a time. Nothing fancy.
+		//
 		// When fifo_level clears, calculate new write size
 		// 20 is a number I found to work for all bitrates during fill.
 		// There seems to be some actual delay in the interrupt firing

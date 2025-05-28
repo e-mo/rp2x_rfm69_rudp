@@ -17,7 +17,7 @@
 
 //	You should have received a copy of the GNU General Public License
 //	along with this program.  If not, see <https://www.gnu.org/licenses/>.
-//#include <stdio.h>
+#include <stdio.h>
 
 #include "pico/rand.h"
 #include "pico/time.h"
@@ -66,9 +66,10 @@ bool rudp_init(struct rudp_context *rudp, const struct rudp_config_s *config) {
 	return true;
 }
 
-void rudp_config(rfm69_context_t *rfm) {
+void rudp_config(void *rfm_ctx) {
 	// Init rp2x gpio irq lib
 	rp2x_gpio_irq_init();
+	rfm69_context_t *rfm = (rfm69_context_t *)rfm_ctx; 
 
 	rfm69_mode_set(rfm, RFM69_OP_MODE_STDBY);
 
@@ -105,7 +106,7 @@ static ACK_STATUS_T _ack_received(
 		rfm69_context_t *rfm, 
 		uint8_t *tx_header,
 		uint8_t *rx_header, 
-		uint32_t ack_timeout
+		int ack_timeout
 )
 {
 	ACK_STATUS_T ack_status = -1;
@@ -154,9 +155,9 @@ static ACK_STATUS_T _ack_received(
 
 int rudp_tx(
 		struct rudp_context *rudp,
-		uint8_t rx_address, 
+		int rx_address, 
 		uint8_t *payload_buffer,
-		uint32_t payload_size
+		ptrdiff_t payload_size
 )
 {
 	// Default value to catch errors in function
@@ -188,10 +189,9 @@ int rudp_tx(
 	*tx_index.seq_num = get_rand_32()/2;
 
 	// TX loop
-	uint8_t send_data_size;
+	uint8_t send_data_size = 0;
 	uint8_t resend_count = 0;
 	for (;;) {
-
 		if (resend_count > rudp->tx_resend_max) {
 			return_status = RUDP_TX_RESEND_MAX_REACHED;
 			goto CLEANUP;
@@ -288,8 +288,9 @@ CLEANUP:;
 int rudp_rx(
 		struct rudp_context *rudp,
 		uint8_t *payload_buffer,
-		uint32_t buffer_size,
-		uint32_t *received
+		ptrdiff_t buffer_size,
+		ptrdiff_t *received,
+		int *tx_address
 )
 {
 	enum rudp_trx_error return_status = -1;
@@ -407,6 +408,8 @@ int rudp_rx(
 			// use the wait timeout.
 			rx_timeout = rudp->rx_drop_timeout;
 			*(rx_index.rx_addr) = *(tx_index.tx_addr);
+			// save tx address to output variable
+			*tx_address = *(tx_index.tx_addr);
 			*(rx_index.ack_num) = *(tx_index.seq_num);
 			rx_state = RX_STATE_RECEIVING;
 		} 
