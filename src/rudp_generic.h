@@ -61,7 +61,7 @@ int rudp_rx(
 );
 
 bool rudp_tx_broadcast(
-		rfm69_context_t *rfm,
+		struct rudp_context *rudp,
 		uint8_t *payload_buffer,
 		ptrdiff_t *payload_size
 );
@@ -70,7 +70,8 @@ bool rudp_rx_broadcast(
 		rfm69_context_t *rfm,
 		uint8_t *payload_buffer,
 		ptrdiff_t *buffer_size,
-		int timeout_ms
+		ptrdiff_t *received,
+		int *tx_address
 );
 
 #endif // RFM69_GENERIC_H

@@ -1,6 +1,7 @@
 #ifndef RUDP_RFM69_H
 #define RUDP_RFM69_H
 
+#include "rudp_generic.h"
 #include "rp2x_rfm69_interface.h"
 
 struct rudp_config_s {
@@ -24,7 +25,5 @@ struct rudp_context {
 	int rx_wait_timeout;
 	int rx_drop_timeout;
 };
-
-#include "rudp_generic.h"
 
 #endif // RUDP_RFM69_H
