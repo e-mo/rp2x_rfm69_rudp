@@ -63,6 +63,8 @@ bool rudp_init(struct rudp_context *rudp, const struct rudp_config_s *config) {
 	if (rudp->rx_drop_timeout == 0)
 		rudp->rx_drop_timeout = 2000;
 
+	rudp->rssi = 0;
+
 	return true;
 }
 
@@ -106,7 +108,8 @@ static ACK_STATUS_T _ack_received(
 		rfm69_context_t *rfm, 
 		uint8_t *tx_header,
 		uint8_t *rx_header, 
-		int ack_timeout
+		int ack_timeout,
+		int *rssi
 )
 {
 	ACK_STATUS_T ack_status = -1;
@@ -118,7 +121,8 @@ static ACK_STATUS_T _ack_received(
 				rfm, 
 				rx_header, 
 				WTP_HEADER_SIZE,
-				ack_timeout
+				ack_timeout,
+				rssi
 		);
 
 		// If OK
@@ -231,7 +235,7 @@ int rudp_tx(
 		// 	- Make it a constant?
 		// 	- Perhaps set to good enough for slowest and be done with it?
 		ACK_STATUS_T ack_status = _ack_received(
-				rfm, tx_header, rx_header, rudp->tx_resend_timeout);
+				rfm, tx_header, rx_header, rudp->tx_resend_timeout, &rudp->rssi);
 
 		// If ack not received,
 		if (ack_status != ACK_RECEIVED) {
@@ -282,8 +286,6 @@ CLEANUP:;
 
 	return return_status;
 }
-
-
 
 int rudp_rx(
 		struct rudp_context *rudp,
@@ -339,7 +341,11 @@ int rudp_rx(
 			0 : rx_timeout - elapsed_ms;
 
 		VP_RX_ERROR_T rx_rval = rfm69_vp_rx(
-			rfm, tx_packet, WTP_HEADER_SIZE + WTP_PKT_DATA_MAX, timeout_ms);
+			rfm, tx_packet, 
+			WTP_HEADER_SIZE + WTP_PKT_DATA_MAX, 
+			timeout_ms, 
+			&rudp->rssi
+		);
 
 		time_elapsed_us += absolute_time_diff_us(start_time, get_absolute_time());
 

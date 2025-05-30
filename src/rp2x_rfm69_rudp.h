@@ -20,10 +20,13 @@ struct rudp_config_s {
 
 struct rudp_context {
 	rfm69_context_t *rfm;		
+
 	int tx_resend_max;
 	int tx_resend_timeout;
 	int rx_wait_timeout;
 	int rx_drop_timeout;
+
+	int rssi;
 };
 
 #endif // RUDP_RFM69_H

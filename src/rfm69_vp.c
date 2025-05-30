@@ -93,7 +93,8 @@ VP_RX_ERROR_T rfm69_vp_rx(
 		rfm69_context_t *rfm,
 		uint8_t *rx_buffer,
 		uint16_t buffer_size,
-		uint16_t timeout_ms
+		uint16_t timeout_ms,
+		int *rssi	
 )
 {
 	VP_RX_ERROR_T rx_status = -1;
@@ -157,8 +158,11 @@ VP_RX_ERROR_T rfm69_vp_rx(
 	}
 
 	// Check CRCOK flag to see if packet is OK
-	bool success;
+	bool success = false;
 	rfm69_irq2_flag_state(rfm, RFM69_IRQ2_FLAG_CRC_OK, &success);
+	int16_t rssi_16 = 0;
+	rfm69_rssi_measurement_get(rfm, &rssi_16);
+	*rssi = rssi_16;
 
 	if (success) rx_status = VP_RX_OK;
 	else rx_status = VP_RX_CRC_FAILURE;

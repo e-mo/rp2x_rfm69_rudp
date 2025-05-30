@@ -4,6 +4,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 enum {
 	RX_STATE_WAITING,
@@ -67,7 +68,7 @@ bool rudp_tx_broadcast(
 );
 
 bool rudp_rx_broadcast(
-		rfm69_context_t *rfm,
+		struct rudp_context *rfm,
 		uint8_t *payload_buffer,
 		ptrdiff_t *buffer_size,
 		ptrdiff_t *received,

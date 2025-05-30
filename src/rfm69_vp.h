@@ -26,7 +26,8 @@ VP_RX_ERROR_T rfm69_vp_rx(
 		rfm69_context_t *rfm,
 		uint8_t *rx_buffer,
 		uint16_t buffer_size,
-		uint16_t timeout_ms
+		uint16_t timeout_ms,
+		int *rssi
 );
 
 #endif  // RFM69_VP_H
