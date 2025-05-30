@@ -38,6 +38,9 @@ enum rudp_trx_error {
 	RUDP_TRX_ERROR_MAX
 };
 
+struct rudp_context;
+struct rudp_config_s;
+
 bool rudp_init(struct rudp_context *rudp, const struct rudp_config_s *config);
 
 void rudp_config(void *rfm_ctx);
