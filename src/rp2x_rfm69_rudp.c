@@ -192,6 +192,9 @@ int rudp_tx(
 	// Generate sequence num for first packet
 	*tx_index.seq_num = get_rand_32()/2;
 
+
+	printf("Starting TX Loop: %i\n", __LINE__);
+
 	// TX loop
 	uint8_t send_data_size = 0;
 	uint8_t resend_count = 0;
@@ -203,6 +206,7 @@ int rudp_tx(
 
 		// If retry flag is not set we build a new packet
 		if ((*tx_index.flags & WTP_FLAG_RTR) == 0) {
+			printf("Building new packet: %i\n", __LINE__);
 			send_data_size = payload_size > WTP_PKT_DATA_MAX ? 
 				WTP_PKT_DATA_MAX : payload_size;
 
@@ -215,9 +219,11 @@ int rudp_tx(
 				*tx_index.flags |= WTP_FLAG_FIN;
 		}
 
+		printf("Sending packet: %i\n", __LINE__);
 		// Send packet
 		VP_TX_ERROR_T tx_rval = rfm69_vp_tx(
 				rfm, tx_header, payload_buffer, send_data_size);
+		printf("Packet sent: %i\n", __LINE__);
 
 		// Only way a send can fail is if the transmitter itself returns
 		// a hardware error. 
@@ -239,6 +245,7 @@ int rudp_tx(
 
 		// If ack not received,
 		if (ack_status != ACK_RECEIVED) {
+			printf("Ack not received: %i\n", __LINE__);
 			// In case of hardware issue
 			if (ack_status == ACK_HARDWARE_ERROR) {
 				return_status = RUDP_TX_HARDWARE_ERROR;
@@ -249,6 +256,7 @@ int rudp_tx(
 			resend_count++;
 		 	continue;
 		};
+		printf("Ack received: %i\n", __LINE__);
 		resend_count = 0;
 
 		// Update seq/ack nums
