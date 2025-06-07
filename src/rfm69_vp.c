@@ -72,10 +72,8 @@ VP_TX_ERROR_T rfm69_vp_tx(
 	sem_acquire_blocking(&packet_sent);
 
 CLEANUP:;
-	// Always ensure FIFO clear
 	rfm69_fifo_clear(rfm);
-	// Go to stdby
-	rfm69_mode_set(rfm, RFM69_OP_MODE_STDBY);
+	rfm69_mode_set(rfm, RFM69_OP_MODE_SLEEP);
 
 	// Breakdown
 	rp2x_gpio_irq_disable(rfm->pin_dio0);
@@ -134,7 +132,7 @@ VP_RX_ERROR_T rfm69_vp_rx(
 		rx_status = VP_RX_TIMEOUT;
 		goto CLEANUP;
 	}
-	
+
 	// Rx loop
 	volatile int received = 0;
 	uint32_t elapsed_ms = 0;
@@ -160,6 +158,8 @@ VP_RX_ERROR_T rfm69_vp_rx(
 			received++;
 		} 
 
+		sleep_us(TRX_LOOP_DELAY);
+
 		time_elapsed_us += absolute_time_diff_us(start_time, get_absolute_time());
 		elapsed_ms = time_elapsed_us / 1000;
 
@@ -167,8 +167,6 @@ VP_RX_ERROR_T rfm69_vp_rx(
 			rx_status = VP_RX_TIMEOUT;
 			goto CLEANUP;
 		}
-
-		sleep_us(TRX_LOOP_DELAY);
 	}
 
 	// Check CRCOK flag to see if packet is OK
@@ -179,12 +177,15 @@ VP_RX_ERROR_T rfm69_vp_rx(
 	rfm69_rssi_measurement_get(rfm, &rssi_16);
 	*rssi = rssi_16;
 
-	if (success) rx_status = VP_RX_OK;
-	else rx_status = VP_RX_CRC_FAILURE;
-
 	rfm69_mode_set(rfm, RFM69_OP_MODE_STDBY);
 
-	// Ensure empty FIFO
+	if (success) rx_status = VP_RX_OK;
+	else {
+		rx_status = VP_RX_CRC_FAILURE;
+		goto CLEANUP;
+	}
+
+	// Finishing emptying FIFO
 	bool not_empty = false;
 	for (;;) {
 		rfm69_irq2_flag_state(rfm, RFM69_IRQ2_FLAG_FIFO_NOT_EMPTY, &not_empty);
@@ -206,7 +207,7 @@ VP_RX_ERROR_T rfm69_vp_rx(
 
 CLEANUP:;
 	rfm69_fifo_clear(rfm);
-	rfm69_mode_set(rfm, RFM69_OP_MODE_STDBY);
+	rfm69_mode_set(rfm, RFM69_OP_MODE_SLEEP);
 	
 	// Breakdown
 	rp2x_gpio_irq_disable(rfm->pin_dio0);

@@ -56,7 +56,7 @@ bool rudp_init(struct rudp_context *rudp, const struct rudp_config_s *config) {
 	rudp->rx_wait_timeout = config->rx_wait_timeout;
 	// default: 30s wait timeout
 	if (rudp->rx_wait_timeout == 0)
-		rudp->rx_wait_timeout = 30000;
+		rudp->rx_wait_timeout = 10000;
 
 	rudp->rx_drop_timeout = config->rx_drop_timeout;
 	// default: 2s drop timeout
@@ -261,7 +261,6 @@ int rudp_tx(
 				goto CLEANUP;
 			}
 
-
 			*tx_index.flags |= WTP_FLAG_RTR;
 			resend_count++;
 		 	continue;
@@ -416,6 +415,7 @@ int rudp_rx(
 			p_state = PACKET_VALID_NEW;
 		}
 
+
 		// We have received a packet and it is valid, so we can reset our
 		// elapsed time
 		time_elapsed_us = 0;
@@ -480,7 +480,7 @@ int rudp_rx(
 		// Set proper flags (same as TX and always ACK)
 		*(rx_index.flags) = *(tx_index.flags) | WTP_FLAG_ACK;		
 
-		sleep_ms(10);
+		sleep_ms(15);
 		rfm69_vp_tx(rfm, rx_header, NULL, 0);
 	}
 	
