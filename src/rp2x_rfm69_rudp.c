@@ -17,7 +17,7 @@
 
 //	You should have received a copy of the GNU General Public License
 //	along with this program.  If not, see <https://www.gnu.org/licenses/>.
-#include <stdio.h>
+// #include <stdio.h>
 
 #include "pico/rand.h"
 #include "pico/time.h"
@@ -63,7 +63,10 @@ bool rudp_init(struct rudp_context *rudp, const struct rudp_config_s *config) {
 	if (rudp->rx_drop_timeout == 0)
 		rudp->rx_drop_timeout = 2000;
 
-	rudp->rssi = 0;
+	rudp->trx_report.tx_addr = 0;
+	rudp->trx_report.rx_addr = 0;
+	rudp->trx_report.last_rssi = 0;
+	rudp->trx_report.rtr_count = 0;
 
 	return true;
 }
@@ -71,7 +74,7 @@ bool rudp_init(struct rudp_context *rudp, const struct rudp_config_s *config) {
 void rudp_config(void *rfm_ctx) {
 	// Init rp2x gpio irq lib
 	rp2x_gpio_irq_init();
-	rfm69_context_t *rfm = (rfm69_context_t *)rfm_ctx; 
+	rfm69_context_t *rfm = rfm_ctx; 
 
 	rfm69_mode_set(rfm, RFM69_OP_MODE_STDBY);
 
@@ -79,20 +82,13 @@ void rudp_config(void *rfm_ctx) {
 	rfm69_packet_format_set(rfm, RFM69_PACKET_VARIABLE);
 	rfm69_payload_length_set(rfm, WTP_PKT_SIZE_MAX);
 
-	// RFM69_FIFO_SIZE/2 == 33
-	rfm69_fifo_threshold_set(rfm, RFM69_FIFO_SIZE/2);
 	rfm69_crc_autoclear_set(rfm, false);
+	rfm69_fifo_threshold_set(rfm, RFM69_FIFO_SIZE/2);
 
 	// DIO settings
 	// DIO0 changes between RX and TX so isn't set here
 	rfm69_dio1_config_set(rfm, RFM69_DIO1_PKT_TX_FIFO_LVL);
 	rfm69_dio2_config_set(rfm, RFM69_DIO2_PKT_TX_FIFO_N_EMPTY);
-
-	// TEMPORARY TESTING STUFF
-	//rfm69_power_level_set(rfm, 0);
-    //rfm69_bitrate_set(rfm, RFM69_MODEM_BITRATE_300);
-	//rfm69_fdev_set(rfm, 300000);
-	//rfm69_rxbw_set(rfm, RFM69_RXBW_MANTISSA_16, 0);
 
 	// Make sure we are sleeping as a default state
 	rfm69_mode_set(rfm, RFM69_OP_MODE_SLEEP);
@@ -127,6 +123,7 @@ static ACK_STATUS_T _ack_received(
 
 		// If OK
 		if (rx_rval == VP_RX_OK) {
+
 			if (ack_valid(tx_header, rx_header)) {
 				ack_status = ACK_RECEIVED;
 				break;
@@ -144,6 +141,12 @@ static ACK_STATUS_T _ack_received(
 			ack_status = ACK_HARDWARE_ERROR;
 			break;
 		} 
+
+		else if (rx_rval == VP_RX_BUFFER_OVERFLOW) {
+			//printf("Buffer overflow!\n");
+			//fflush(stdout);
+			break;
+		}
 
 		// get time elapsed here
 		// subtract from ack_timeout
@@ -168,6 +171,12 @@ int rudp_tx(
 	enum rudp_trx_error return_status = -1;
 	rfm69_context_t *rfm = rudp->rfm;
 
+	rudp->trx_report.tx_addr = 0;
+	rudp->trx_report.rx_addr = 0;
+	rudp->trx_report.last_rssi = 0;
+	rudp->trx_report.rtr_count = 0;
+	rudp->trx_report.payload_size = payload_size;
+
 	// Start and end in sleep so we always knows our inital and ending state
 	rfm69_mode_set(rfm, RFM69_OP_MODE_SLEEP);
 	// Make sure we are only filtering by node address and ignoring broadcast
@@ -189,11 +198,11 @@ int rudp_tx(
 	*tx_index.rx_addr = rx_address;
 	rfm69_node_address_get(rfm, tx_index.tx_addr);	
 
+	rudp->trx_report.tx_addr = *tx_index.tx_addr;
+	rudp->trx_report.rx_addr = *tx_index.rx_addr;
+
 	// Generate sequence num for first packet
 	*tx_index.seq_num = get_rand_32()/2;
-
-
-	printf("Starting TX Loop: %i\n", __LINE__);
 
 	// TX loop
 	uint8_t send_data_size = 0;
@@ -206,7 +215,6 @@ int rudp_tx(
 
 		// If retry flag is not set we build a new packet
 		if ((*tx_index.flags & WTP_FLAG_RTR) == 0) {
-			printf("Building new packet: %i\n", __LINE__);
 			send_data_size = payload_size > WTP_PKT_DATA_MAX ? 
 				WTP_PKT_DATA_MAX : payload_size;
 
@@ -217,13 +225,13 @@ int rudp_tx(
 			payload_size -= send_data_size;
 			if (payload_size == 0)
 				*tx_index.flags |= WTP_FLAG_FIN;
+		} else {
+			rudp->trx_report.rtr_count++;
 		}
 
-		printf("Sending packet: %i\n", __LINE__);
 		// Send packet
 		VP_TX_ERROR_T tx_rval = rfm69_vp_tx(
 				rfm, tx_header, payload_buffer, send_data_size);
-		printf("Packet sent: %i\n", __LINE__);
 
 		// Only way a send can fail is if the transmitter itself returns
 		// a hardware error. 
@@ -232,7 +240,8 @@ int rudp_tx(
 			goto CLEANUP;
 		}
 		// If here tx_rval == VP_TX_OK
-
+		//
+		
 		// WAIT FOR ACK
 		// There should be a total timeout in a loop here maybe?
 		// 100 ms as testing value
@@ -241,22 +250,22 @@ int rudp_tx(
 		// 	- Make it a constant?
 		// 	- Perhaps set to good enough for slowest and be done with it?
 		ACK_STATUS_T ack_status = _ack_received(
-				rfm, tx_header, rx_header, rudp->tx_resend_timeout, &rudp->rssi);
+				rfm, tx_header, rx_header, rudp->tx_resend_timeout, &rudp->trx_report.last_rssi);
+
 
 		// If ack not received,
 		if (ack_status != ACK_RECEIVED) {
-			printf("Ack not received: %i\n", __LINE__);
 			// In case of hardware issue
 			if (ack_status == ACK_HARDWARE_ERROR) {
 				return_status = RUDP_TX_HARDWARE_ERROR;
 				goto CLEANUP;
 			}
 
+
 			*tx_index.flags |= WTP_FLAG_RTR;
 			resend_count++;
 		 	continue;
 		};
-		printf("Ack received: %i\n", __LINE__);
 		resend_count = 0;
 
 		// Update seq/ack nums
@@ -280,6 +289,7 @@ int rudp_tx(
 		// data packet
 		payload_buffer += send_data_size;
 
+		//sleep_ms(10);
 	}
 
 	*tx_index.pkt_size = WTP_HEADER_SIZE_EFFECTIVE;
@@ -298,11 +308,8 @@ CLEANUP:;
 int rudp_rx(
 		struct rudp_context *rudp,
 		uint8_t *payload_buffer,
-		ptrdiff_t buffer_size,
-		ptrdiff_t *received,
-		int *tx_address
-)
-{
+		ptrdiff_t buffer_size
+) {
 	enum rudp_trx_error return_status = -1;
 	uint8_t *buffer_p = payload_buffer;
 
@@ -323,6 +330,7 @@ int rudp_rx(
 
 	// Get our address here because it does not change
 	rfm69_node_address_get(rfm, rx_index.tx_addr);	
+	rudp->trx_report.rx_addr = *rx_index.tx_addr;
 
 	// Generate sequence num for first packet
 	*rx_index.seq_num = get_rand_32()/2;
@@ -332,7 +340,6 @@ int rudp_rx(
 
 	// RX loop vars
 	int rx_state = RX_STATE_WAITING;
-	*received = 0;
 	uint32_t data_size;
 	bool success = false;
 	uint32_t rx_timeout = rudp->rx_wait_timeout;
@@ -352,11 +359,10 @@ int rudp_rx(
 			rfm, tx_packet, 
 			WTP_HEADER_SIZE + WTP_PKT_DATA_MAX, 
 			timeout_ms, 
-			&rudp->rssi
+			&rudp->trx_report.last_rssi
 		);
 
 		time_elapsed_us += absolute_time_diff_us(start_time, get_absolute_time());
-
 
 		// End time
 
@@ -382,7 +388,6 @@ int rudp_rx(
 			continue;
 		}
 
-
 		// Good CRC, check packet
 		PACKET_STATE_T p_state = packet_check(rx_header, tx_packet, rx_state);
 
@@ -407,7 +412,6 @@ int rudp_rx(
 		// If tx has restarted, reset all necessary vars
 		case PACKET_VALID_TX_RESTART:
 			buffer_p = payload_buffer;
-			*received = 0;
 			rx_state = RX_STATE_WAITING;
 			p_state = PACKET_VALID_NEW;
 		}
@@ -418,12 +422,18 @@ int rudp_rx(
 		
 		// If this is our first packet we need to set a few things
 		if (rx_state == RX_STATE_WAITING) {
+
+			rudp->trx_report.last_rssi = 0;
+			rudp->trx_report.rtr_count = 0;
+			rudp->trx_report.payload_size = 0;
+
 			// We have received our packet and thus should no longer
 			// use the wait timeout.
 			rx_timeout = rudp->rx_drop_timeout;
 			*(rx_index.rx_addr) = *(tx_index.tx_addr);
-			// save tx address to output variable
-			*tx_address = *(tx_index.tx_addr);
+
+			rudp->trx_report.tx_addr = *(tx_index.tx_addr);
+
 			*(rx_index.ack_num) = *(tx_index.seq_num);
 			rx_state = RX_STATE_RECEIVING;
 		} 
@@ -443,12 +453,12 @@ int rudp_rx(
 			}
 
 			data_size = *(tx_index.pkt_size) - WTP_HEADER_SIZE_EFFECTIVE;
-			*received += data_size;
+			rudp->trx_report.payload_size += data_size;
 			// This prevents a buffer overflow
-			if (*received > buffer_size) {
+			if (rudp->trx_report.payload_size > buffer_size) {
 				// Change received back to reflect how much was actually
 				// received.
-				*received -= data_size;
+				rudp->trx_report.payload_size -= data_size;
 				return_status = RUDP_RX_BUFFER_OVERFLOW;
 				goto CLEANUP;
 			}
@@ -462,13 +472,16 @@ int rudp_rx(
 			// Update seq and ack nums
 			*(rx_index.seq_num) += 1;
 			*(rx_index.ack_num) += 1;
-		}
+		} 
+
+		if (*(tx_index.flags) & WTP_FLAG_RTR)
+			rudp->trx_report.rtr_count++;
 
 		// Set proper flags (same as TX and always ACK)
 		*(rx_index.flags) = *(tx_index.flags) | WTP_FLAG_ACK;		
 
+		sleep_ms(10);
 		rfm69_vp_tx(rfm, rx_header, NULL, 0);
-
 	}
 	
 	// Only two possible states here:

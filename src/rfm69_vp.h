@@ -7,7 +7,8 @@ typedef enum _VP_RX_ERRORS {
 	VP_RX_OK,
 	VP_RX_TIMEOUT,
 	VP_RX_FIFO_READ_FAILURE,
-	VP_RX_CRC_FAILURE
+	VP_RX_CRC_FAILURE,
+	VP_RX_BUFFER_OVERFLOW,
 } VP_RX_ERROR_T;
 
 typedef enum _VP_TX_ERRORS {
@@ -26,7 +27,7 @@ VP_RX_ERROR_T rfm69_vp_rx(
 		rfm69_context_t *rfm,
 		uint8_t *rx_buffer,
 		uint16_t buffer_size,
-		int timeout_ms,
+		uint32_t timeout_ms,
 		int *rssi
 );
 

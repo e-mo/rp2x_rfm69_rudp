@@ -42,6 +42,14 @@ enum rudp_trx_error {
 struct rudp_context;
 struct rudp_config_s;
 
+struct trx_report {
+	int tx_addr;
+	int rx_addr;
+	int last_rssi;
+	int rtr_count;
+	int payload_size;
+};
+
 bool rudp_init(struct rudp_context *rudp, const struct rudp_config_s *config);
 
 void rudp_config(void *rfm_ctx);
@@ -56,9 +64,7 @@ int rudp_tx(
 int rudp_rx(
 		struct rudp_context *rudp,
 		uint8_t *payload_buffer,
-		ptrdiff_t buffer_size,
-		ptrdiff_t *received,
-		int *tx_address
+		ptrdiff_t buffer_size
 );
 
 bool rudp_tx_broadcast(
@@ -70,9 +76,7 @@ bool rudp_tx_broadcast(
 bool rudp_rx_broadcast(
 		struct rudp_context *rfm,
 		uint8_t *payload_buffer,
-		ptrdiff_t *buffer_size,
-		ptrdiff_t *received,
-		int *tx_address
+		ptrdiff_t *buffer_size
 );
 
 #endif // RFM69_GENERIC_H

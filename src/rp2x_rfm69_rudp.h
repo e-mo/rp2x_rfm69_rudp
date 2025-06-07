@@ -18,6 +18,7 @@ struct rudp_config_s {
 	int rx_drop_timeout;
 };
 
+
 struct rudp_context {
 	rfm69_context_t *rfm;		
 
@@ -26,7 +27,7 @@ struct rudp_context {
 	int rx_wait_timeout;
 	int rx_drop_timeout;
 
-	int rssi;
+	struct trx_report trx_report;
 };
 
 #endif // RUDP_RFM69_H
