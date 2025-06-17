@@ -3,8 +3,8 @@ cmake_minimum_required(VERSION 3.13)
 set(target "rp2x_rfm69_rudp_lib")
 project(${target} C CXX ASM)
 
-add_subdirectory(rp2x_gpio_irq)
-add_subdirectory(rp2x_rfm69)
+add_subdirectory(libs/rp2x_gpio_irq)
+add_subdirectory(libs/rp2x_rfm69)
 
 add_library(${target} INTERFACE)
 
