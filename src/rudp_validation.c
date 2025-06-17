@@ -10,14 +10,21 @@ bool ack_valid(uint8_t *tx_header, uint8_t *rx_header) {
 	uint8_t expected_flags = tx_header[WTP_HEADER_FLAGS_OFFSET];
 	expected_flags |= WTP_FLAG_ACK;
 
+	printf("%02X : %02X\n", expected_flags, rx_header[WTP_HEADER_FLAGS_OFFSET]);
+
 	// Flags are wrong, go away
 	if (rx_header[WTP_HEADER_FLAGS_OFFSET] != expected_flags)
 		return false;
 
 	// Check if ack is correct
-	uint16_t expected_ack = *(uint16_t *)&tx_header[WTP_HEADER_SEQ_NUM_OFFSET];
+	uint16_t expected_ack = tx_header[WTP_HEADER_SEQ_NUM_OFFSET];
+	expected_ack |= tx_header[WTP_HEADER_SEQ_NUM_OFFSET + 1] << 8;
 	expected_ack += 1;
-	uint16_t rx_ack = *(uint16_t *)&rx_header[WTP_HEADER_ACK_NUM_OFFSET];
+	uint16_t rx_ack = rx_header[WTP_HEADER_ACK_NUM_OFFSET];
+	rx_ack |= rx_header[WTP_HEADER_ACK_NUM_OFFSET + 1] << 8;
+
+	printf("ea: %04X - ra: %04X\n", expected_ack, rx_ack);
+
 	if (expected_ack != rx_ack) {
 		return false;
 	}

@@ -10,9 +10,7 @@ add_library(${target} INTERFACE)
 
 target_sources(${target} INTERFACE
 	src/rp2x_rfm69_rudp.c
-	src/rudp_validation.c
-	src/rfm69_vp.c
-	src/wtp-1_0.c
+	src/rfm69_lp.c
 )
 
 target_include_directories(${target} INTERFACE
@@ -26,4 +24,5 @@ target_link_libraries(${target} INTERFACE
 	pico_rand
 	pico_sync
 	pico_time
+	hardware_dma
 )

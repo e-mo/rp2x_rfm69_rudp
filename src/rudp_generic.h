@@ -6,34 +6,18 @@
 #include <stdint.h>
 #include <stddef.h>
 
-enum {
-	RX_STATE_WAITING,
-	RX_STATE_RECEIVING,
-	RX_STATE_FIN_UNCONFIRMED,
-	RX_STATE_FIN
-};
-
 enum rudp_trx_error {
-	// GENERAL
-	RUDP_OK,
-	RUDP_HARDWARE_ERROR,
-	
-	// INIT
-	RUDP_UNINITIALIZED, // 2
+	RUDP_UNKNOWN_RETURN = -1,
+	RUDP_UNINITIALIZED,
 	RUDP_INIT_SUCCESS,
 	RUDP_INIT_FAILURE,
 
-	// TX
-	RUDP_TX_SUCCESS, // 5
-	RUDP_TX_HARDWARE_ERROR,
-	RUDP_TX_RESEND_MAX_REACHED,
-
-	// RX
-	RUDP_RX_SUCCESS, // 8
-	RUDP_RX_HARDWARE_ERROR,
-	RUDP_RX_SUCCESS_UNCONFIRMED,
-	RUDP_RX_BUFFER_OVERFLOW,
-	RUDP_RX_TIMEOUT,
+	RUDP_OK,
+	RUDP_TIMEOUT,
+	RUDP_BAD_PACKET,
+	RUDP_HARDWARE_ERROR,
+	RUDP_BUFFER_OVERFLOW,
+	RUDP_RESEND_MAX_REACHED,
 
 	// bookend
 	RUDP_TRX_ERROR_MAX
@@ -47,6 +31,7 @@ struct trx_report {
 	int rx_addr;
 	int last_rssi;
 	int rtr_count;
+	int bad_pkt_count;
 	int payload_size;
 };
 
@@ -57,7 +42,7 @@ void rudp_config(void *rfm_ctx);
 int rudp_tx(
 		struct rudp_context *rudp,
 		int rx_address, 
-		uint8_t *payload_buffer,
+		const uint8_t *payload_buffer,
 		ptrdiff_t payload_size
 );
 
