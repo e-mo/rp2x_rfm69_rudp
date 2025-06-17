@@ -1,6 +1,0 @@
-[submodule "rp2x_rfm69"]
-	path = rp2x_rfm69
-	url = https://github.com/e-mo/rp2x_rfm69.git
-[submodule "rp2x_gpio_irq"]
-	path = rp2x_gpio_irq
-	url = https://github.com/e-mo/rp2x_gpio_irq.git
