@@ -6,14 +6,19 @@
 
 #define TRX_LOOP_DELAY (10)
 
-static void semaphore_release_cb(uint gpio, uint32_t event_mask, void *data) {
-	semaphore_t *sem = data;	
-	sem_release(sem);
+static void semaphore_release_cb(uint gpio, uint32_t event_mask, volatile void *data) {
+	volatile semaphore_t *sem = data;	
+	sem_release((semaphore_t *)sem);
 }
 
-static void bool_level_cb(uint gpio, uint32_t event_mask, void *data) {
+static void bool_level_cb(uint gpio, uint32_t event_mask, volatile void *data) {
 	volatile bool *flag = data;
-	*flag = !!(event_mask & GPIO_IRQ_EDGE_RISE);
+
+	if (event_mask & GPIO_IRQ_EDGE_FALL)
+		*flag = false;
+	else if (event_mask & GPIO_IRQ_EDGE_RISE)
+		*flag = true;
+
 }
 
 VP_TX_ERROR_T rfm69_vp_tx(
