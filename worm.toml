@@ -1,0 +1,7 @@
+[[submodule]]
+remote = "https://github.com/e-mo/rp2x_rfm69.git"
+local = "submodules/rp2x_rfm69"
+
+[[submodule]]
+remote = "https://github.com/e-mo/rp2x_gpio_irq.git"
+local = "submodules/rp2x_gpio_irq"
